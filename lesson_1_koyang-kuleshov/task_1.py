@@ -9,7 +9,8 @@ ip-адресом. В функции необходимо перебирать i
 """
 
 from ipaddress import ip_address
-from subprocess import Popen
+from subprocess import Popen, PIPE
+import os
 
 
 def host_ping(lst):
@@ -21,12 +22,17 @@ def host_ping(lst):
         finally:
             process = Popen(
                 f'ping {str(host)} -c 3',
-                shell=True)
+                shell=True,
+                stdin=PIPE,
+                stdout=DNULL,
+                stderr=DNULL
+            )
             return_code = process.wait()
             if return_code == 0:
                 print(f'{host} - доступен')
 
 
+DNULL = open(os.devnull, 'wb')
 HOSTS = ['87.250.250.242', '173.194.73.138', 'mail.ru']
 
 if __name__ == '__main__':
