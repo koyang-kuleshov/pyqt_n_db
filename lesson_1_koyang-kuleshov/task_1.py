@@ -13,12 +13,13 @@ from subprocess import Popen, PIPE
 import os
 
 
-def host_ping(lst):
+def host_ping(lst, no_ret):
+    host_lst = {'Доступные узлы': '', 'Недоступные узлы': ''}
     for host in lst:
         try:
             host = ip_address(host)
         except ValueError:
-            print(f'{host} не корркетный или доменное имя')
+            print(f'{host} не корректный или доменное имя')
         finally:
             process = Popen(
                 f'ping {str(host)} -c 3',
@@ -29,11 +30,18 @@ def host_ping(lst):
             )
             return_code = process.wait()
             if return_code == 0:
-                print(f'{host} - доступен')
+                if no_ret:
+                    print(f'{host} - доступен')
+                host_lst['Доступные узлы'] = str(host)
+            else:
+                if no_ret:
+                    print(f'{host} - недоступен')
+                host_lst['Недоступные узлы'] = host.exploded
+    return host_lst
 
 
 DNULL = open(os.devnull, 'wb')
 HOSTS = ['87.250.250.242', '173.194.73.138', 'mail.ru']
 
 if __name__ == '__main__':
-    host_ping(HOSTS)
+    host_ping(HOSTS, True)
