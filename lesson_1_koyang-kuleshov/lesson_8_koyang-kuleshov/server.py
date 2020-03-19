@@ -52,118 +52,123 @@ def parse_comm_line():
     return addr, port, conn
 
 
-@log
-def do_answer(message, message_list, client, clients, names):
-    """Обрабатывает сообщение от клиента и готовит ответ"""
-    SERV_LOG.debug('Обработка сообщения от клиента и подготовка ответа')
-    if ACTION in message and message[ACTION] == PRESENCE and TO in message \
-            and TIME in message and USER in message:
-        if message[USER][ACCOUNT_NAME] not in names.keys():
-            names[message[USER][ACCOUNT_NAME]] = client
-            send_message(client, {RESPONSE: 200})
-            SERV_LOG.debug('Ответ подготовлен: {RESPONSE: 200}')
+class Server():
+    """Запускает сервер"""
+    def __init__(self, address, port, connections):
+        self.address = address
+        self.port = port
+        self.connections = connections
+
+    def __call__(self):
+        SERV_LOG.debug('Запуск сервера')
+        SERV = socket(AF_INET, SOCK_STREAM)
+        while True:
+            try:
+                SERV.bind((self.address, self.port))
+                print(f'Сервер запущен {self.address}:{self.port}')
+                break
+            except OSError as err:
+                print(f'Порт занят. Повторная попытка запуска сервера через 10\
+ сек')
+                SERV_LOG.debug(f'Ошибка при запуске сервера: {err}')
+                sleep(10)
+        SERV.listen(self.connections)
+        SERV.settimeout(0.5)
+        clients = []
+        messages = []
+        names = dict()
+        while True:
+            try:
+                client, client_addr = SERV.accept()
+            except OSError:
+                pass
+            else:
+                SERV_LOG.info(f'Подключился клиент: {client_addr}')
+                clients.append(client)
+
+            read_clients_lst = []
+            send_clients_lst = []
+            err_lst = []
+            try:
+                if clients:
+                    read_clients_lst, send_clients_lst, err_lst = select(
+                        clients, clients, [], 0)
+            except OSError:
+                pass
+            if read_clients_lst:
+                for client_with_message in read_clients_lst:
+                    try:
+                        self.do_answer(
+                            get_message(client_with_message),
+                            messages, client_with_message, clients, names)
+                    except Exception:
+                        SERV_LOG.info(
+                            f'Клиент {client_with_message.getpeername()}'
+                            f' отключился от сервера')
+                        clients.remove(client_with_message)
+            for i in messages:
+                try:
+                    self.do_message(i, names, send_clients_lst)
+                except Exception:
+                    SERV_LOG.info(f'Связь с клиентом {i[TO]} потеряна')
+                    clients.remove(names[i[TO]])
+                    del names[i[TO]]
+            messages.clear()
+
+    @log
+    def do_answer(self, message, message_list, client, clients, names):
+        """Обрабатывает сообщение от клиента и готовит ответ"""
+        SERV_LOG.debug('Обработка сообщения от клиента и подготовка ответа')
+        if ACTION in message and message[ACTION] == PRESENCE and TO in message\
+                and TIME in message and USER in message:
+            if message[USER][ACCOUNT_NAME] not in names.keys():
+                names[message[USER][ACCOUNT_NAME]] = client
+                send_message(client, {RESPONSE: 200})
+                SERV_LOG.debug('Ответ подготовлен: {RESPONSE: 200}')
+            else:
+                SERV_LOG.debug("Ответ подготовлен: {RESPONSE: 400\nERROR: \
+'Имя пользователя уже занято'}")
+                send_message(client, {
+                    RESPONSE: 400,
+                    ERROR: 'Имя пользователя уже занято'
+                })
+                clients.remove(client)
+                client.close()
+            return
+        elif ACTION in message and message[ACTION] == MSG and TIME in message \
+                and MESSAGE in message and TO in message:
+            message_list.append(message)
+            return
+        elif ACTION in message and message[ACTION] == QUIT and \
+                ACCOUNT_NAME in message:
+            clients.remove(names[message[ACCOUNT_NAME]])
+            names[message[ACCOUNT_NAME]].close()
+            del names[message[ACCOUNT_NAME]]
         else:
             SERV_LOG.debug("Ответ подготовлен: {RESPONSE: 400\nERROR: \
-'Имя пользователя уже занято'}")
+'Bad request'}")
             send_message(client, {
                 RESPONSE: 400,
-                ERROR: 'Имя пользователя уже занято'
+                ERROR: 'Bad request'
             })
-            clients.remove(client)
-            client.close()
-        return
-    elif ACTION in message and message[ACTION] == MSG and TIME in message \
-            and MESSAGE in message and TO in message:
-        # message_list.append((message[USER][ACCOUNT_NAME], message[MESSAGE]))
-        message_list.append(message)
-        return
-    elif ACTION in message and message[ACTION] == QUIT and \
-            ACCOUNT_NAME in message:
-        clients.remove(names[message[ACCOUNT_NAME]])
-        names[message[ACCOUNT_NAME]].close()
-        del names[message[ACCOUNT_NAME]]
-    else:
-        SERV_LOG.debug("Ответ подготовлен: {RESPONSE: 400\nERROR: \
-'Bad request'}")
-        send_message(client, {
-            RESPONSE: 400,
-            ERROR: 'Bad request'
-        })
-        return
+            return
 
-
-@log
-def do_message(message, names, socks):
-    """Отправляет сообщение определённому клиенту"""
-    if message[TO] in names and names[message[TO]] in socks:
-        send_message(names[message[TO]], message)
-        SERV_LOG.info(f'Отправлено сообщение пользователю {message[TO]} '
-                      f' от пользователя {message[SENDER]}')
-    elif message[TO] in names and names[message[TO]] not in socks:
-        raise ConnectionError
-    else:
-        SERV_LOG.error(f'Пользователь {message[TO]} не зарегистрирован на \
+    @log
+    def do_message(self, message, names, socks):
+        """Отправляет сообщение определённому клиенту"""
+        if message[TO] in names and names[message[TO]] in socks:
+            send_message(names[message[TO]], message)
+            SERV_LOG.info(
+                f'Отправлено сообщение пользователю {message[TO]} '
+                f' от пользователя {message[SENDER]}')
+        elif message[TO] in names and names[message[TO]] not in socks:
+            raise ConnectionError
+        else:
+            SERV_LOG.error(f'Пользователь {message[TO]} не зарегистрирован на \
 на сервере. Отправка невозможна')
 
 
-def server_main():
-    """Запускает сервер"""
-    SERV_LOG.debug('Запуск сервера')
-    ADDRES, PORT, CONNECTIONS = parse_comm_line()
-    SERV = socket(AF_INET, SOCK_STREAM)
-    while True:
-        try:
-            SERV.bind((ADDRES, PORT))
-            print(f'Сервер запущен {ADDRES}:{PORT}')
-            break
-        except OSError as err:
-            print(f'Порт занят. Повторная попытка запуска сервера через 10 \
-сек.')
-            SERV_LOG.debug(f'Ошибка при запуске сервера: {err}')
-            sleep(10)
-    SERV.listen(CONNECTIONS)
-    SERV.settimeout(0.5)
-    clients = []
-    messages = []
-    names = dict()
-    while True:
-        try:
-            client, client_addr = SERV.accept()
-        except OSError:
-            pass
-        else:
-            SERV_LOG.info(f'Подключился клиент: {client_addr}')
-            clients.append(client)
-
-        read_clients_lst = []
-        send_clients_lst = []
-        err_lst = []
-        try:
-            if clients:
-                read_clients_lst, send_clients_lst, err_lst = select(
-                    clients, clients, [], 0)
-        except OSError:
-            pass
-        if read_clients_lst:
-            for client_with_message in read_clients_lst:
-                try:
-                    do_answer(
-                        get_message(client_with_message),
-                        messages, client_with_message, clients, names)
-                except Exception:
-                    SERV_LOG.info(
-                        f'Клиент {client_with_message.getpeername()}'
-                        f' отключился от сервера')
-                    clients.remove(client_with_message)
-        for i in messages:
-            try:
-                do_message(i, names, send_clients_lst)
-            except Exception:
-                SERV_LOG.info(f'Связь с клиентом {i[TO]} потеряна')
-                clients.remove(names[i[TO]])
-                del names[i[TO]]
-        messages.clear()
-
-
 if __name__ == '__main__':
+    ADDRESS, PORT, CONNECTIONS = parse_comm_line()
+    server_main = Server(ADDRESS, PORT, CONNECTIONS)
     server_main()
