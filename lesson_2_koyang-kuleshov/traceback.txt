@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/home/ma5ta/.local/lib/python3.7/site-packages/pudb/__init__.py", line 153, in runscript
+    dbg._runscript(mainpyfile)
+  File "/home/ma5ta/.local/lib/python3.7/site-packages/pudb/debugger.py", line 468, in _runscript
+    self.run(statement)
+  File "/usr/lib/python3.7/bdb.py", line 585, in run
+    exec(cmd, globals, locals)
+  File "<string>", line 1, in <module>
+  File "client.py", line 55, in <module>
+    class ClientApp(metaclass=ClientVerifier):
+  File "/home/ma5ta/coding/python/db_and_pyqt/lesson_2_koyang-kuleshov/metaclasses.py", line 53, in __init__
+    for s in clsdict.values:
+TypeError: 'builtin_function_or_method' object is not iterable
