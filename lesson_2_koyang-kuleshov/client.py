@@ -53,7 +53,6 @@ def parse_comm_line():
 
 
 class ClientApp(metaclass=ClientVerifier):
-    s = socket(AF_INET, SOCK_STREAM)
     def __init__(self, address, port, account_name):
         self.address = address
         self.port = port
