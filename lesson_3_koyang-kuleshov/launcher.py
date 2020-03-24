@@ -11,11 +11,11 @@ process = list()
 number_of_client = argparse.ArgumentParser('Считывает количество клиентов \
                                            для запуска')
 number_of_client.add_argument(
-    '-n',
+    '-c',
     type=int, default=MAX_CONNECTIONS,
-    help='Введите количество клиентов для запуска -n=2, по умолчанию 6'
+    help='Введите количество клиентов для запуска -c=2, по умолчанию 6'
 )
-n = number_of_client.parse_args().n
+max_conn = number_of_client.parse_args().c
 while True:
     action = input('q - выход\ns - запустить сервер и клиенты\n\
 x - закрыть все окна\nВведите действие: ')
@@ -27,7 +27,7 @@ x - закрыть все окна\nВведите действие: ')
                 ['python', 'server.py'],
                 creationflags=subprocess.CREATE_NEW_CONSOLE)
             )
-            for i in range(n // 3):
+            for i in range(max_conn):
                 name = 'User'+str(i + 1)
                 process.append(subprocess.Popen(
                     ['python', 'client.py', f'-name={name}'],
@@ -38,7 +38,7 @@ x - закрыть все окна\nВведите действие: ')
                 'xterm -e python server.py', stdout=subprocess.PIPE,
                 stdin=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True))
             sleep(1)
-            for i in range(n // 3):
+            for i in range(max_conn):
                 name = 'User'+str(i + 1)
                 process.append(subprocess.Popen(
                     f'xterm -e python client.py -name={name}',

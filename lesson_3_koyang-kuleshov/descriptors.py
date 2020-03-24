@@ -1,4 +1,9 @@
+import ipaddress
 import logging
+import socket
+
+from common.variables import DEFAULT_IP_ADDRES
+
 logger = logging.getLogger('server.log')
 
 
@@ -20,3 +25,22 @@ class Port:
 
     def __set_name__(self, owner, name):
         self.name = name
+
+
+class Host:
+    def __init__(self):
+        self._value = None
+
+    def __get__(self, instance, instance_type):
+        return self._value
+
+    def __set__(self, instance, value):
+        try:
+            ipaddress.ip_address(socket.gethostbyname(value))
+        except socket.gaierror:
+            print(f' IP-адрес не рабочий: {value}'
+                  f'Адрес сервера устанавливается по умолчанию: \
+                  {DEFAULT_IP_ADDRES}'
+                  )
+            self._value = DEFAULT_IP_ADDRES
+        self._value = value

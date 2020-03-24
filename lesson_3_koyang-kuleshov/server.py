@@ -14,11 +14,11 @@ from socket import socket, AF_INET, SOCK_STREAM
 from time import sleep
 
 from common.utils import get_message, send_message
-from common.variables import DEFAULT_PORT, DEFAULT_IP_ADDRES, MAX_CONNECTIONS,\
+from common.variables import DEFAULT_IP_ADDRES, MAX_CONNECTIONS,\
     ACTION, PRESENCE, TIME, USER, RESPONSE, ERROR, TO, SENDER, MESSAGE, MSG, \
     ACCOUNT_NAME, QUIT
 from decorators import log
-from descriptors import Port
+from descriptors import Port, Host
 from metaclasses import ServerVerifier
 
 
@@ -26,16 +26,17 @@ SERV_LOG = logging.getLogger('server.log')
 
 
 def parse_comm_line():
-    pars_str = argparse.ArgumentParser('Считывает TCP-порт и IP-адрес')
+    pars_str = argparse.ArgumentParser('Сервер принимает и обрабатывает '
+                                       'сообщения от пользователей')
     pars_str.add_argument(
         '-a',
         type=str,
-        default=DEFAULT_IP_ADDRES,
+        default='',
         help='IP-адрес'
     )
     pars_str.add_argument('-p', type=int, default=None, help='Порт')
     pars_str.add_argument(
-        '-u',
+        '-c',
         type=int,
         default=MAX_CONNECTIONS,
         help='Количество пользователей на сервере'
@@ -53,6 +54,7 @@ def parse_comm_line():
 
 class Server(metaclass=ServerVerifier):
     port = Port()
+    address = Host()
 
     def __init__(self, server_address, server_port, connections):
         self.address = server_address
