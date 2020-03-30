@@ -20,6 +20,7 @@ from common.variables import DEFAULT_IP_ADDRES, MAX_CONNECTIONS,\
 from decorators import log
 from descriptors import Port, Host
 from metaclasses import ServerVerifier
+from server_database import ServerDatabase
 
 
 SERV_LOG = logging.getLogger('server.log')
@@ -45,7 +46,7 @@ def parse_comm_line():
         SERV_LOG.debug('Разбираются параметры командой строки при вызове')
         addr = pars_str.parse_args().a
         port = pars_str.parse_args().p
-        conn = pars_str.parse_args().u
+        conn = pars_str.parse_args().c
     except Exception as err:
         SERV_LOG.error(f'Ошибка: {err}')
         print(f'Ошибка: {err}')
@@ -56,10 +57,12 @@ class Server(metaclass=ServerVerifier):
     port = Port()
     address = Host()
 
-    def __init__(self, server_address, server_port, connections):
+
+    def __init__(self, server_address, server_port, connections, database):
         self.address = server_address
         self.port = server_port
         self.connections = connections
+        self.database = database
 
     def __call__(self):
         SERV_LOG.debug('Запуск сервера')
@@ -107,6 +110,11 @@ class Server(metaclass=ServerVerifier):
                         SERV_LOG.info(
                             f'Клиент {client_with_message.getpeername()}'
                             f' отключился от сервера')
+                        for name in self.names:
+                            if names[name] == client_with_message:
+                                self.database.user_logout(name)
+                                del names[name]
+                                break
                         clients.remove(client_with_message)
             for i in messages:
                 try:
@@ -114,6 +122,7 @@ class Server(metaclass=ServerVerifier):
                 except Exception:
                     SERV_LOG.info(f'Связь с клиентом {i[TO]} потеряна')
                     clients.remove(names[i[TO]])
+                    self.database.user_logout(i[TO])
                     del names[i[TO]]
             messages.clear()
 
@@ -125,6 +134,11 @@ class Server(metaclass=ServerVerifier):
                 and TIME in message and USER in message:
             if message[USER][ACCOUNT_NAME] not in names.keys():
                 names[message[USER][ACCOUNT_NAME]] = client
+                client_ip, client_port = client.getpeername()
+                self.database.user_login(
+                    message[USER][ACCOUNT_NAME],
+                    client_ip, client_port
+                )
                 send_message(client, {RESPONSE: 200})
                 SERV_LOG.debug('Ответ подготовлен: {RESPONSE: 200}')
             else:
@@ -143,6 +157,7 @@ class Server(metaclass=ServerVerifier):
             return
         elif ACTION in message and message[ACTION] == QUIT and \
                 ACCOUNT_NAME in message:
+            self.database.user_logout(message[ACCOUNT_NAME])
             clients.remove(names[message[ACCOUNT_NAME]])
             names[message[ACCOUNT_NAME]].close()
             del names[message[ACCOUNT_NAME]]
@@ -172,5 +187,6 @@ class Server(metaclass=ServerVerifier):
 
 if __name__ == '__main__':
     ADDRESS, PORT, CONNECTIONS = parse_comm_line()
-    server_main = Server(ADDRESS, PORT, CONNECTIONS)
+    database = ServerDatabase()
+    server_main = Server(ADDRESS, PORT, CONNECTIONS, database)
     server_main()

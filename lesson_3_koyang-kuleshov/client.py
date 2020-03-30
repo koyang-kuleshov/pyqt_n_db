@@ -30,7 +30,7 @@ def parse_comm_line():
         type=str,
         help='IP-адрес сервера, по умолчанию 127.0.0.1'
     )
-    pars_str.add_argument('-p', type=int, help='Порт сервера, по \
+    pars_str.add_argument('-port', type=int, help='Порт сервера, по \
     умолчанию 7777')
     pars_str.add_argument('-name', type=str, help='Получает имя клиента')
     CLIENT_LOG.info('Разбираются параметры командой строки при вызове')
