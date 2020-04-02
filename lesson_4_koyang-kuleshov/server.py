@@ -64,7 +64,7 @@ class Server(metaclass=ServerVerifier):
         self.connections = connections
         self.database = database
 
-    def __call__(self):
+    def run(self):
         SERV_LOG.debug('Запуск сервера')
         SERV = socket(AF_INET, SOCK_STREAM)
         while True:
@@ -189,4 +189,4 @@ if __name__ == '__main__':
     ADDRESS, PORT, CONNECTIONS = parse_comm_line()
     database = ServerDatabase()
     server_main = Server(ADDRESS, PORT, CONNECTIONS, database)
-    server_main()
+    server_main.run()
