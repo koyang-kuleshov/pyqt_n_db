@@ -12,11 +12,13 @@ import logging
 from select import select
 from socket import socket, AF_INET, SOCK_STREAM
 from time import sleep
+import threading
 
 from common.utils import get_message, send_message
-from common.variables import DEFAULT_IP_ADDRES, MAX_CONNECTIONS,\
+from common.variables import MAX_CONNECTIONS,\
     ACTION, PRESENCE, TIME, USER, RESPONSE, ERROR, TO, SENDER, MESSAGE, MSG, \
-    ACCOUNT_NAME, QUIT
+    ACCOUNT_NAME, QUIT, GET_CONTACTS, LIST_INFO, ADD_CONTACT, REMOVE_CONTACT, \
+    USERS_REQUEST
 from decorators import log
 from descriptors import Port, Host
 from metaclasses import ServerVerifier
@@ -56,7 +58,6 @@ def parse_comm_line():
 class Server(metaclass=ServerVerifier):
     port = Port()
     address = Host()
-
 
     def __init__(self, server_address, server_port, connections, database):
         self.address = server_address
@@ -129,6 +130,7 @@ class Server(metaclass=ServerVerifier):
     @log
     def do_answer(self, message, message_list, client, clients, names):
         """Обрабатывает сообщение от клиента и готовит ответ"""
+        global new_connection
         SERV_LOG.debug('Обработка сообщения от клиента и подготовка ответа')
         if ACTION in message and message[ACTION] == PRESENCE and TO in message\
                 and TIME in message and USER in message:
@@ -140,6 +142,8 @@ class Server(metaclass=ServerVerifier):
                     client_ip, client_port
                 )
                 send_message(client, {RESPONSE: 200})
+                with conflag_lock:
+                    new_connection = True
                 SERV_LOG.debug('Ответ подготовлен: {RESPONSE: 200}')
             else:
                 SERV_LOG.debug("Ответ подготовлен: {RESPONSE: 400\nERROR: \
@@ -154,6 +158,7 @@ class Server(metaclass=ServerVerifier):
         elif ACTION in message and message[ACTION] == MSG and TIME in message \
                 and MESSAGE in message and TO in message:
             message_list.append(message)
+            self.database.process_user_message(message[SENDER], message[TO])
             return
         elif ACTION in message and message[ACTION] == QUIT and \
                 ACCOUNT_NAME in message:
@@ -161,6 +166,27 @@ class Server(metaclass=ServerVerifier):
             clients.remove(names[message[ACCOUNT_NAME]])
             names[message[ACCOUNT_NAME]].close()
             del names[message[ACCOUNT_NAME]]
+        elif ACTION in message and message[ACTION] == GET_CONTACTS and \
+                USER in message and self.names[message[USER]] == client:
+            response = {RESPONSE: 202}
+            response[LIST_INFO] = self.database.get_contacts(message[USER])
+            send_message(client, response)
+        elif ACTION in message and message[ACTION] == ADD_CONTACT and \
+                ACCOUNT_NAME in message and USER in message \
+                and self.names[message[USER]] == client:
+            self.database.add_contact(message[USER], message[ACCOUNT_NAME])
+            send_message(client, {RESPONSE: 200})
+        elif ACTION in message and message[ACTION] == REMOVE_CONTACT and \
+            ACCOUNT_NAME in message and USER in message and \
+                self.names[message[USER]] == client:
+            self.database.remove_contact(message[USER], message[ACCOUNT_NAME])
+            send_message(client, {RESPONSE: 200})
+        elif ACTION in message and message[ACTION] == USERS_REQUEST and \
+            ACCOUNT_NAME in message and self.names[message[ACCOUNT_NAME]] ==\
+                client:
+            response[LIST_INFO] = [
+                user[0] for user in self.database.users_list()
+            ]
         else:
             SERV_LOG.debug("Ответ подготовлен: {RESPONSE: 400\nERROR: \
 'Bad request'}")
@@ -184,6 +210,9 @@ class Server(metaclass=ServerVerifier):
             SERV_LOG.error(f'Пользователь {message[TO]} не зарегистрирован на \
 на сервере. Отправка невозможна')
 
+
+new_connection = False
+conflag_lock = threading.Lock()
 
 if __name__ == '__main__':
     ADDRESS, PORT, CONNECTIONS = parse_comm_line()
