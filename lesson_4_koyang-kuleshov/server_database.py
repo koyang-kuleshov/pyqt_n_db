@@ -91,6 +91,10 @@ class ServerDatabase:
 
     def user_login(self, username, ip_addr, port):
         result = self.session.query(self.AllUsers).filter_by(login=username)
+        print(result)
+        print(type(result))
+        print(type(result.count()))
+        print(result.count())
         if result.count():
             user = result.first()
             user.last_login = datetime.now()
@@ -98,6 +102,8 @@ class ServerDatabase:
             user = self.AllUsers(username)
             self.session.add(user)
             self.session.commit()
+            user_in_history = self.UsersHistory(user.id)
+            self.session.add(user_in_history)
         new_active_user = self.ActiveUsers(user.id, ip_addr, port,
                                            datetime.now())
         self.session.add(new_active_user)
@@ -113,7 +119,7 @@ class ServerDatabase:
 
     def user_list(self):
         query = self.session.query(
-            self.AllUsers.login,
+            self.AllUsers.name,
             self.AllUsers.last_connect)
         return query.all()
 
@@ -131,7 +137,7 @@ class ServerDatabase:
                                    self.LoginHistory.ip,
                                    self.LoginHistory.port).join(self.AllUsers)
         if username:
-            query = query.filter(self.AllUsers.login == username)
+            query = query.filter(self.AllUsers.name == username)
         return query.all()
 
     def process_user_message(self, from_user, to_user):
@@ -188,9 +194,9 @@ class ServerDatabase:
 if __name__ == '__main__':
     database = ServerDatabase()
     database.user_login('user_1', '192.168.0.1', 1111)
-    database.user_login('user_2', '192.168.0.2', 2222)
+    # database.user_login('user_2', '192.168.0.2', 2222)
     print(database.active_users_list())
-    database.user_logout('user_1')
-    print(database.active_users_list())
+    # database.user_logout('user_1')
+    # print(database.active_users_list())
     print(database.login_history('user_1'))
     print(database.user_list())

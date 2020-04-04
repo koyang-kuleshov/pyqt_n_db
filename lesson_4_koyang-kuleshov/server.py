@@ -11,9 +11,11 @@ import argparse
 import logging
 from select import select
 from socket import socket, AF_INET, SOCK_STREAM
-from time import sleep
 import threading
-
+import sys
+from PyQt5.QtWidgets import QMainWindow, QApplication, QTableView, qApp
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from PyQt5.QtCore import QRect, QTimer
 from common.utils import get_message, send_message
 from common.variables import MAX_CONNECTIONS,\
     ACTION, PRESENCE, TIME, USER, RESPONSE, ERROR, TO, SENDER, MESSAGE, MSG, \
@@ -23,6 +25,7 @@ from decorators import log
 from descriptors import Port, Host
 from metaclasses import ServerVerifier
 from server_database import ServerDatabase
+from server_gui import Ui_MainWindow
 
 
 SERV_LOG = logging.getLogger('server.log')
@@ -55,7 +58,7 @@ def parse_comm_line():
     return addr, port, conn
 
 
-class Server(metaclass=ServerVerifier):
+class Server(threading.Thread, metaclass=ServerVerifier):
     port = Port()
     address = Host()
 
@@ -64,41 +67,39 @@ class Server(metaclass=ServerVerifier):
         self.port = server_port
         self.connections = connections
         self.database = database
+        super().__init__()
+        self.clients = []
+        self.messages = []
+        self.names = dict()
 
-    def run(self):
+    def init_socket(self):
         SERV_LOG.debug('Запуск сервера')
         SERV = socket(AF_INET, SOCK_STREAM)
-        while True:
-            try:
-                SERV.bind((self.address, self.port))
-                print(f'Сервер запущен {self.address}:{self.port}')
-                break
-            except OSError as err:
-                print(f'Порт занят. Повторная попытка запуска сервера через 10\
- сек')
-                SERV_LOG.debug(f'Ошибка при запуске сервера: {err}')
-                sleep(10)
-        SERV.listen(self.connections)
+        SERV.bind((self.address, self.port))
         SERV.settimeout(0.5)
-        clients = []
-        messages = []
-        names = dict()
+        self.sock = SERV
+        self.sock.listen(self.connections)
+        print(f'Сервер запущен {self.address}:{self.port}')
+
+
+    def run(self):
+        self.init_socket()
         while True:
             try:
-                client, client_addr = SERV.accept()
+                client, client_addr = self.sock.accept()
             except OSError:
                 pass
             else:
                 SERV_LOG.info(f'Подключился клиент: {client_addr}')
-                clients.append(client)
+                self.clients.append(client)
 
             read_clients_lst = []
             send_clients_lst = []
             err_lst = []
             try:
-                if clients:
+                if self.clients:
                     read_clients_lst, send_clients_lst, err_lst = select(
-                        clients, clients, [], 0)
+                        self.clients, self.clients, [], 0)
             except OSError:
                 pass
             if read_clients_lst:
@@ -106,28 +107,29 @@ class Server(metaclass=ServerVerifier):
                     try:
                         self.do_answer(
                             get_message(client_with_message),
-                            messages, client_with_message, clients, names)
+                            self.messages, client_with_message, self.clients,
+                            self.names)
                     except Exception:
                         SERV_LOG.info(
                             f'Клиент {client_with_message.getpeername()}'
                             f' отключился от сервера')
                         for name in self.names:
-                            if names[name] == client_with_message:
+                            if self.names[name] == client_with_message:
                                 self.database.user_logout(name)
-                                del names[name]
+                                del self.names[name]
                                 break
-                        clients.remove(client_with_message)
-            for i in messages:
+                        self.clients.remove(client_with_message)
+            for i in self.messages:
                 try:
-                    self.do_message(i, names, send_clients_lst)
+                    self.do_message(i, self.names, send_clients_lst)
                 except Exception:
                     SERV_LOG.info(f'Связь с клиентом {i[TO]} потеряна')
-                    clients.remove(names[i[TO]])
+                    self.clients.remove(self.names[i[TO]])
                     self.database.user_logout(i[TO])
-                    del names[i[TO]]
-            messages.clear()
+                    del self.names[i[TO]]
+            self.messages.clear()
 
-    @log
+    # @log
     def do_answer(self, message, message_list, client, clients, names):
         """Обрабатывает сообщение от клиента и готовит ответ"""
         global new_connection
@@ -211,11 +213,67 @@ class Server(metaclass=ServerVerifier):
 на сервере. Отправка невозможна')
 
 
+class MyWindow(QMainWindow):
+    def __init__(self):
+        super(MyWindow, self).__init__()
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+        self.tableView = QTableView(self)
+        self.tableView.setGeometry(QRect(10, 100, 780, 480))
+
+    def gui_create_model(self, database):
+        list_users = database.active_users_list()
+        lst = QStandardItemModel()
+        lst.setHorizontalHeaderLabels([
+            'Имя клиента',
+            'IP адрес',
+            'Порт',
+            'Время подключения'])
+        for row in list_users:
+            user, ip, port, time = row
+            user = QStandardItem(user)
+            user.setEditable(False)
+            ip = QStandardItem(ip)
+            ip.setEditable(False)
+            port = QStandardItem(str(port))
+            port.setEditable(False)
+            time = QStandardItem(str(time.replace(microsecond=0)))
+            time.setEditable(False)
+            lst.appendRow([user, ip, port, time])
+
+
+def main():
+    ADDRESS, PORT, CONNECTIONS = parse_comm_line()
+    database = ServerDatabase()
+    server_main = Server(ADDRESS, PORT, CONNECTIONS, database)
+    server_main.daemon = True
+    server_main.start()
+    server_app = QApplication(sys.argv)
+    main_window = MyWindow()
+    main_window.show()
+    main_window.statusBar().showMessage('Server working')
+    main_window.tableView.setModel(main_window.gui_create_model(database))
+    main_window.tableView.resizeColumnsToContents()
+    main_window.tableView.resizeRowsToContents()
+    # main_window.quit.triggered.connect(qApp.quit)
+    sys(server_app.exec_())
+
+    def list_update():
+        global new_connection
+        if new_connection:
+            main_window.tableView.setModel(
+                main_window.gui_create_model(database))
+            main_window.tableView.resizeColumnsToContents()
+            main_window.tableView.resizeRowsToContents()
+            with conflag_lock:
+                new_connection = False
+
+    timer = QTimer()
+    timer.timeout.connect(list_update)
+    timer.start(1000)
+
 new_connection = False
 conflag_lock = threading.Lock()
 
 if __name__ == '__main__':
-    ADDRESS, PORT, CONNECTIONS = parse_comm_line()
-    database = ServerDatabase()
-    server_main = Server(ADDRESS, PORT, CONNECTIONS, database)
-    server_main.run()
+    main()
