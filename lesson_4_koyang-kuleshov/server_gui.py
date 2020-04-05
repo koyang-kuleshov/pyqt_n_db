@@ -8,6 +8,7 @@
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+# class Ui_MainWindow(QtWidgets.QMainWindow):
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
@@ -23,9 +24,9 @@ class Ui_MainWindow(object):
         font.setPointSize(12)
         self.label.setFont(font)
         self.label.setObjectName("label")
-        # self.tableView = QtWidgets.QTableView(self.centralwidget)
-        # self.tableView.setGeometry(QtCore.QRect(10, 20, 780, 480))
-        # self.tableView.setObjectName("tableView")
+        self.tableView = QtWidgets.QTableView(self.centralwidget)
+        self.tableView.setGeometry(QtCore.QRect(10, 20, 780, 480))
+        self.tableView.setObjectName("tableView")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setEnabled(True)
@@ -61,11 +62,11 @@ class Ui_MainWindow(object):
         self.toolBar.setFloatable(False)
         self.toolBar.setObjectName("toolBar")
         MainWindow.addToolBar(QtCore.Qt.TopToolBarArea, self.toolBar)
-        self.quit = QtWidgets.QAction(MainWindow)
+        self.btnQuit = QtWidgets.QAction(MainWindow)
         font = QtGui.QFont()
         font.setPointSize(12)
-        self.quit.setFont(font)
-        self.quit.setObjectName("quit")
+        self.btnQuit.setFont(font)
+        self.btnQuit.setObjectName("btnQuit")
         self.refresh_list = QtWidgets.QAction(MainWindow)
         font = QtGui.QFont()
         font.setPointSize(12)
@@ -85,14 +86,14 @@ class Ui_MainWindow(object):
         self.menu.addAction(self.history_list)
         self.menu.addAction(self.settings_server)
         self.menu.addSeparator()
-        self.menu.addAction(self.quit)
+        self.menu.addAction(self.btnQuit)
         self.menubar.addAction(self.menu.menuAction())
         self.menubar.addAction(self.helpMenu.menuAction())
         self.toolBar.addAction(self.refresh_list)
         self.toolBar.addAction(self.history_list)
         self.toolBar.addAction(self.settings_server)
         self.toolBar.addSeparator()
-        self.toolBar.addAction(self.quit)
+        self.toolBar.addAction(self.btnQuit)
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
@@ -104,7 +105,7 @@ class Ui_MainWindow(object):
         self.menu.setTitle(_translate("MainWindow", "Команды"))
         self.helpMenu.setTitle(_translate("MainWindow", "Помощь"))
         self.toolBar.setWindowTitle(_translate("MainWindow", "toolBar"))
-        self.quit.setText(_translate("MainWindow", "Выход"))
+        self.btnQuit.setText(_translate("MainWindow", "Выход"))
         self.refresh_list.setText(_translate("MainWindow", "Обновить список"))
         self.history_list.setText(_translate("MainWindow", "История клиентов"))
         self.settings_server.setText(_translate("MainWindow", "Параметры"))

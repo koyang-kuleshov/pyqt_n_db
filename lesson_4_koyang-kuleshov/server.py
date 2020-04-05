@@ -13,9 +13,9 @@ from select import select
 from socket import socket, AF_INET, SOCK_STREAM
 import threading
 import sys
-from PyQt5.QtWidgets import QMainWindow, QApplication, QTableView, qApp
+from PyQt5.QtWidgets import QMainWindow, QApplication, qApp, QWidget
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtCore import QRect, QTimer
+from PyQt5.QtCore import QTimer
 from common.utils import get_message, send_message
 from common.variables import MAX_CONNECTIONS,\
     ACTION, PRESENCE, TIME, USER, RESPONSE, ERROR, TO, SENDER, MESSAGE, MSG, \
@@ -73,9 +73,12 @@ class Server(threading.Thread, metaclass=ServerVerifier):
         self.names = dict()
 
     def init_socket(self):
-        SERV_LOG.debug('Запуск сервера')
         SERV = socket(AF_INET, SOCK_STREAM)
-        SERV.bind((self.address, self.port))
+        try:
+            SERV.bind((self.address, self.port))
+        except OSError as err:
+            print(err)
+        SERV_LOG.debug('Запуск сервера')
         SERV.settimeout(0.5)
         self.sock = SERV
         self.sock.listen(self.connections)
@@ -129,7 +132,7 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                     del self.names[i[TO]]
             self.messages.clear()
 
-    # @log
+    @log
     def do_answer(self, message, message_list, client, clients, names):
         """Обрабатывает сообщение от клиента и готовит ответ"""
         global new_connection
@@ -214,13 +217,15 @@ class Server(threading.Thread, metaclass=ServerVerifier):
 
 
 class MyWindow(QMainWindow):
-    def __init__(self):
-        super(MyWindow, self).__init__()
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent)
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        self.tableView = QTableView(self)
-        self.tableView.setGeometry(QRect(10, 100, 780, 480))
+        self.tableView = self.ui.tableView
+        self.ui.btnQuit.triggered.connect(qApp.quit)
+        self.refresh_list = self.ui.refresh_list
 
+    @log
     def gui_create_model(self, database):
         list_users = database.active_users_list()
         lst = QStandardItemModel()
@@ -240,6 +245,7 @@ class MyWindow(QMainWindow):
             time = QStandardItem(str(time.replace(microsecond=0)))
             time.setEditable(False)
             lst.appendRow([user, ip, port, time])
+            print(lst)
 
 
 def main():
@@ -255,9 +261,8 @@ def main():
     main_window.tableView.setModel(main_window.gui_create_model(database))
     main_window.tableView.resizeColumnsToContents()
     main_window.tableView.resizeRowsToContents()
-    # main_window.quit.triggered.connect(qApp.quit)
-    sys(server_app.exec_())
 
+    # @log
     def list_update():
         global new_connection
         if new_connection:
@@ -267,10 +272,12 @@ def main():
             main_window.tableView.resizeRowsToContents()
             with conflag_lock:
                 new_connection = False
-
     timer = QTimer()
     timer.timeout.connect(list_update)
     timer.start(1000)
+    main_window.refresh_list.triggered.connect(list_update)
+    sys(server_app.exec_())
+
 
 new_connection = False
 conflag_lock = threading.Lock()

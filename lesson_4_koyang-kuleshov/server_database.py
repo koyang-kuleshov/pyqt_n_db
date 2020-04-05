@@ -18,6 +18,7 @@ from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, \
     DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import SingletonThreadPool
 from datetime import datetime
 from common.variables import SERVER_DATABASE
 
@@ -70,6 +71,11 @@ class ServerDatabase:
         sent = Column(Integer)
         accepted = Column(Integer)
 
+        def __init__(self, user, sent, accepted):
+            self.user = user
+            self.sent = sent
+            self.accepted = accepted
+
     class UserContacts(Base):
         __tablename__ = 'user_contacts'
         id = Column(Integer, primary_key=True)
@@ -82,7 +88,8 @@ class ServerDatabase:
 
     def __init__(self):
         self.engine = create_engine(SERVER_DATABASE, echo=False,
-                                    pool_recycle=7200)
+                                    pool_recycle=7200,
+                                    connect_args={'check_same_thread': False})
         self.Base.metadata.create_all(self.engine)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
@@ -91,10 +98,6 @@ class ServerDatabase:
 
     def user_login(self, username, ip_addr, port):
         result = self.session.query(self.AllUsers).filter_by(login=username)
-        print(result)
-        print(type(result))
-        print(type(result.count()))
-        print(result.count())
         if result.count():
             user = result.first()
             user.last_login = datetime.now()
@@ -102,7 +105,7 @@ class ServerDatabase:
             user = self.AllUsers(username)
             self.session.add(user)
             self.session.commit()
-            user_in_history = self.UsersHistory(user.id)
+            user_in_history = self.UsersHistory(user.id, 0, 0)
             self.session.add(user_in_history)
         new_active_user = self.ActiveUsers(user.id, ip_addr, port,
                                            datetime.now())
