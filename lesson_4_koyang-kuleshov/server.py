@@ -13,7 +13,8 @@ from select import select
 from socket import socket, AF_INET, SOCK_STREAM
 import threading
 import sys
-from PyQt5.QtWidgets import QMainWindow, QApplication, qApp, QWidget
+from PyQt5.QtWidgets import QMainWindow, QApplication, qApp, QWidget,\
+    QTableView
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import QTimer
 from common.utils import get_message, send_message
@@ -132,7 +133,7 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                     del self.names[i[TO]]
             self.messages.clear()
 
-    @log
+    # @log
     def do_answer(self, message, message_list, client, clients, names):
         """Обрабатывает сообщение от клиента и готовит ответ"""
         global new_connection
@@ -165,27 +166,35 @@ class Server(threading.Thread, metaclass=ServerVerifier):
             message_list.append(message)
             self.database.process_user_message(message[SENDER], message[TO])
             return
+
         elif ACTION in message and message[ACTION] == QUIT and \
                 ACCOUNT_NAME in message:
             self.database.user_logout(message[ACCOUNT_NAME])
+            SERV_LOG.debug('Удален клиент из таблицы активных клиентов')
             clients.remove(names[message[ACCOUNT_NAME]])
             names[message[ACCOUNT_NAME]].close()
             del names[message[ACCOUNT_NAME]]
+            with conflag_lock:
+                new_connection = True
+
         elif ACTION in message and message[ACTION] == GET_CONTACTS and \
                 USER in message and self.names[message[USER]] == client:
             response = {RESPONSE: 202}
             response[LIST_INFO] = self.database.get_contacts(message[USER])
             send_message(client, response)
+
         elif ACTION in message and message[ACTION] == ADD_CONTACT and \
                 ACCOUNT_NAME in message and USER in message \
                 and self.names[message[USER]] == client:
             self.database.add_contact(message[USER], message[ACCOUNT_NAME])
             send_message(client, {RESPONSE: 200})
+
         elif ACTION in message and message[ACTION] == REMOVE_CONTACT and \
             ACCOUNT_NAME in message and USER in message and \
                 self.names[message[USER]] == client:
             self.database.remove_contact(message[USER], message[ACCOUNT_NAME])
             send_message(client, {RESPONSE: 200})
+
         elif ACTION in message and message[ACTION] == USERS_REQUEST and \
             ACCOUNT_NAME in message and self.names[message[ACCOUNT_NAME]] ==\
                 client:
@@ -225,11 +234,11 @@ class MyWindow(QMainWindow):
         self.ui.btnQuit.triggered.connect(qApp.quit)
         self.refresh_list = self.ui.refresh_list
 
-    @log
+    # @log
     def gui_create_model(self, database):
         list_users = database.active_users_list()
-        lst = QStandardItemModel()
-        lst.setHorizontalHeaderLabels([
+        list = QStandardItemModel()
+        list.setHorizontalHeaderLabels([
             'Имя клиента',
             'IP адрес',
             'Порт',
@@ -244,8 +253,8 @@ class MyWindow(QMainWindow):
             port.setEditable(False)
             time = QStandardItem(str(time.replace(microsecond=0)))
             time.setEditable(False)
-            lst.appendRow([user, ip, port, time])
-            print(lst)
+            list.appendRow([user, ip, port, time])
+        return list
 
 
 def main():

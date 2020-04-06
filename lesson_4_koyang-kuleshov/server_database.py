@@ -117,6 +117,7 @@ class ServerDatabase:
     def user_logout(self, username):
         user = self.session.query(self.AllUsers).filter_by(login=username).\
             first()
+        print(user)
         self.session.query(self.ActiveUsers).filter_by(user=user.id).delete()
         self.session.commit()
 
