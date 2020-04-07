@@ -14,9 +14,9 @@ from socket import socket, AF_INET, SOCK_STREAM
 import threading
 import sys
 from PyQt5.QtWidgets import QMainWindow, QApplication, qApp, QWidget,\
-    QTableView
+    QLabel, QLineEdit, QPushButton, QFileDialog, QDialog, QTableView
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 from common.utils import get_message, send_message
 from common.variables import MAX_CONNECTIONS,\
     ACTION, PRESENCE, TIME, USER, RESPONSE, ERROR, TO, SENDER, MESSAGE, MSG, \
@@ -233,8 +233,8 @@ class MyWindow(QMainWindow):
         self.tableView = self.ui.tableView
         self.ui.btnQuit.triggered.connect(qApp.quit)
         self.refresh_list = self.ui.refresh_list
+        self.history_list = self.ui.history_list
 
-    # @log
     def gui_create_model(self, database):
         list_users = database.active_users_list()
         list = QStandardItemModel()
@@ -257,6 +257,49 @@ class MyWindow(QMainWindow):
         return list
 
 
+class HistoryWindow(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle('Статистика клиентов')
+        self.setFixedSize(600, 700)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+
+        self.close_button = QPushButton('Закрыть', self)
+        self.close_button.move(250, 650)
+        self.close_button.clicked.connect(self.close)
+
+        self.history_table = QTableView(self)
+        self.history_table.move(10, 10)
+        self.history_table.setFixedSize(580, 620)
+
+        self.show()
+
+    def create_stat_model(self, database):
+        # Список записей из базы
+        hist_list = database.message_history()
+
+        # Объект модели данных:
+        list = QStandardItemModel()
+        list.setHorizontalHeaderLabels([
+            'Имя Клиента', 'Последний раз входил', 'Сообщений отправлено',
+            'Сообщений получено'])
+        for row in hist_list:
+            user, last_seen, sent, recvd = row
+            user = QStandardItem(user)
+            user.setEditable(False)
+            last_seen = QStandardItem(str(last_seen.replace(microsecond=0)))
+            last_seen.setEditable(False)
+            sent = QStandardItem(str(sent))
+            sent.setEditable(False)
+            recvd = QStandardItem(str(recvd))
+            recvd.setEditable(False)
+            list.appendRow([user, last_seen, sent, recvd])
+        return list
+
+
 def main():
     ADDRESS, PORT, CONNECTIONS = parse_comm_line()
     database = ServerDatabase()
@@ -271,7 +314,6 @@ def main():
     main_window.tableView.resizeColumnsToContents()
     main_window.tableView.resizeRowsToContents()
 
-    # @log
     def list_update():
         global new_connection
         if new_connection:
@@ -281,11 +323,26 @@ def main():
             main_window.tableView.resizeRowsToContents()
             with conflag_lock:
                 new_connection = False
+
+    def show_statistics():
+        global stat_window
+        stat_window = HistoryWindow()
+        stat_window.history_table.setModel(stat_window.
+                                           create_stat_model(database))
+        stat_window.history_table.resizeColumnsToContents()
+        stat_window.history_table.resizeRowsToContents()
+        stat_window.show()
+
     timer = QTimer()
     timer.timeout.connect(list_update)
     timer.start(1000)
     main_window.refresh_list.triggered.connect(list_update)
+    main_window.history_list.triggered.connect(show_statistics)
     sys(server_app.exec_())
+
+    def show_statistics():
+        global stat_window
+        config_window = ConfigWindow()
 
 
 new_connection = False

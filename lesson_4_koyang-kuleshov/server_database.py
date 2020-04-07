@@ -187,7 +187,7 @@ class ServerDatabase:
 
     def message_history(self):
         query = self.session.query(
-            self.AllUsers.name,
+            self.UsersHistory.user,
             self.AllUsers.last_connect,
             self.UsersHistory.sent,
             self.UsersHistory.accepted

@@ -8,7 +8,6 @@
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-# class Ui_MainWindow(QtWidgets.QMainWindow):
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
@@ -78,13 +77,6 @@ class Ui_MainWindow(object):
         self.history_list.setFont(font)
         self.history_list.setObjectName("history_list")
         self.settings_server = QtWidgets.QAction(MainWindow)
-        font = QtGui.QFont()
-        font.setPointSize(12)
-        self.settings_server.setFont(font)
-        self.settings_server.setObjectName("settings_server")
-        self.menu.addAction(self.refresh_list)
-        self.menu.addAction(self.history_list)
-        self.menu.addAction(self.settings_server)
         self.menu.addSeparator()
         self.menu.addAction(self.btnQuit)
         self.menubar.addAction(self.menu.menuAction())
@@ -100,13 +92,13 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "Messaging server alfa version"))
-        self.label.setText(_translate("MainWindow", "Список подключённых клиентов"))
+        MainWindow.setWindowTitle(_translate("MainWindow",
+                                             "Messaging server alfa version"))
+        self.label.setText(_translate("MainWindow",
+                                      "Список подключённых клиентов"))
         self.menu.setTitle(_translate("MainWindow", "Команды"))
         self.helpMenu.setTitle(_translate("MainWindow", "Помощь"))
         self.toolBar.setWindowTitle(_translate("MainWindow", "toolBar"))
         self.btnQuit.setText(_translate("MainWindow", "Выход"))
         self.refresh_list.setText(_translate("MainWindow", "Обновить список"))
         self.history_list.setText(_translate("MainWindow", "История клиентов"))
-        self.settings_server.setText(_translate("MainWindow", "Параметры"))
-
