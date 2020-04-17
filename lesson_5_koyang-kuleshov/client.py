@@ -215,7 +215,7 @@ if __name__ == '__main__':
     if account_name is None:
         CLIENT_LOG.info('Запрашиваем имя у клиента')
         start_dialog = UserNameDialog()
-        client_app.exec()
+        client_app.exec_()
         if start_dialog.ok_pressed:
             account_name = start_dialog.client_name.text()
             del start_dialog

@@ -10,6 +10,7 @@ __pycache__/
 *.rar
 *.json
 *.yaml
+*.key
 src/
 output/
 img/

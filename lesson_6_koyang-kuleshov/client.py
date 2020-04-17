@@ -1,6 +1,7 @@
 """ Клиент посылает и получает сообщения."""
 
 import argparse
+import os
 import logging
 from threading import Thread
 import json
@@ -8,15 +9,15 @@ from socket import socket, AF_INET, SOCK_STREAM
 from time import time, sleep
 import sys
 from datetime import datetime
-from random import randint
 from PyQt5.QtWidgets import QApplication
+from Crypto.PublicKey import RSA
 
 from common.utils import send_message, get_message
 from common.variables import PRESENCE, DEFAULT_IP_ADDRES, DEFAULT_PORT, \
     USER, ACCOUNT_NAME, TIME, RESPONSE, ERROR, ACTION, TO, MSG, MESSAGE, \
     SENDER, QUIT
-from decorators import Log
-from metaclasses import ClientVerifier
+from common.decorators import Log
+from common.metaclasses import ClientVerifier
 from client.database import ClientDatabase
 from client.transport import ClientTransport
 from client.main_window import ClientMainWindow
@@ -38,10 +39,12 @@ def parse_comm_line():
     pars_str.add_argument('-port', type=int, help='Порт сервера, по \
     умолчанию 7777')
     pars_str.add_argument('-name', type=str, help='Получает имя клиента')
+    pars_str.add_argument('-password', type=str, help='Получает пароль клиента')
     CLIENT_LOG.info('Разбираются параметры командой строки при вызове')
     port = pars_str.parse_args().port
     account_n = pars_str.parse_args().name
     addr = pars_str.parse_args().a
+    client_pass = pars_str.parse_args().password
     if port is None:
         CLIENT_LOG.info('Порт задан не верно')
         port = DEFAULT_PORT
@@ -51,7 +54,7 @@ def parse_comm_line():
     if addr is None:
         CLIENT_LOG.info('Устанавливается IP-адрес по умолчанию.')
         addr = DEFAULT_IP_ADDRES
-    return addr, port, account_n
+    return addr, port, account_n, client_pass
 
 
 class ClientApp(metaclass=ClientVerifier):
@@ -94,7 +97,6 @@ class ClientApp(metaclass=ClientVerifier):
                 if receiver.is_alive() and self.user_interface.is_alive():
                     continue
                 break
-
     @Log()
     def create_presence(self):
         """Создание запроса о присутствии клиента на сервере"""
@@ -209,33 +211,46 @@ class ClientApp(metaclass=ClientVerifier):
 
 
 if __name__ == '__main__':
-    ADDRESS, PORT, account_name = parse_comm_line()
-    # client_main = ClientApp(ADDRESS, PORT, account_name)
+    ADDRESS, PORT, account_name, client_passwd = parse_comm_line()
     client_app = QApplication(sys.argv)
-    if account_name is None:
+    start_dialog = UserNameDialog()
+    if account_name is None or not client_passwd:
         CLIENT_LOG.info('Запрашиваем имя у клиента')
-        start_dialog = UserNameDialog()
-        client_app.exec()
+        client_app.exec_()
         if start_dialog.ok_pressed:
             account_name = start_dialog.client_name.text()
+            client_passwd = start_dialog.client_passwd.text()
             del start_dialog
         else:
             exit(0)
 
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    key_file = os.path.join(dir_path, f'{account_name}.key')
+    if not os.path.exists(key_file):
+        keys = RSA.generate(2048, os.urandom)
+        with open(key_file, 'wb') as key:
+            key.write(keys.exportKey())
+    else:
+        with open(key_file, 'rb') as key:
+            keys = RSA.importKey(key.read())
+
+    keys.publickey().exportKey()
     database = ClientDatabase(account_name)
+
     try:
-        transport = ClientTransport(PORT, ADDRESS, database, account_name)
+        transport = ClientTransport(PORT, ADDRESS, database, account_name,
+                                    client_passwd, keys)
     except Exception as error:
-        print(error.text)
+        print(error)
         exit(1)
+
     transport.setDaemon(True)
     transport.start()
 
-    main_window = ClientMainWindow(database, transport)
+    main_window = ClientMainWindow(database, transport, keys)
     main_window.make_connection(transport)
     main_window.setWindowTitle(f'Чат Программа alpha release - {account_name}')
     client_app.exec_()
 
     transport.transport_shutdown()
     transport.join()
-    # client_main()

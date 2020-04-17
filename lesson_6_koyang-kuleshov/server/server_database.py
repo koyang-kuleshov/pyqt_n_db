@@ -15,7 +15,7 @@
         - id_клиента
 """
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, \
-    DateTime
+    DateTime, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import SingletonThreadPool
@@ -31,10 +31,15 @@ class ServerDatabase:
         id = Column(Integer, primary_key=True)
         login = Column(String, unique=True)
         last_connect = Column(DateTime)
+        passwd_hash = Column(String)
+        pubkey = Column(Text)
 
-        def __init__(self, login):
+        def __init__(self, login, passwd_hash):
             self.login = login
             self.last_connect = datetime.now()
+            self.passwd_hash = passwd_hash
+            self.pubkey = None
+            self.id = None
 
     class ActiveUsers(Base):
         __tablename__ = 'active_users'
@@ -193,6 +198,57 @@ class ServerDatabase:
             self.UsersHistory.accepted
         ).join(self.AllUsers)
         return query.all()
+
+    def user_login(self, username, ip_address, port, key):
+        # Запрос в таблицу пользователей на наличие там пользователя с таким именем
+        rez = self.session.query(self.AllUsers).filter_by(login=username)
+
+        # Если имя пользователя уже присутствует в таблице, обновляем время последнего входа
+        # и проверяем корректность ключа. Если клиент прислал новый ключ, сохраняем его.
+        if rez.count():
+            user = rez.first()
+            user.last_login = datetime.datetime.now()
+            if user.pubkey != key:
+                user.pubkey = key
+        # Если нету, то генерируем исключение
+        else:
+            raise ValueError('Пользователь не зарегистрирован.')
+
+        # Теперь можно создать запись в таблицу активных пользователей о факте входа.
+        new_active_user = self.ActiveUsers(user.id, ip_address, port, datetime.datetime.now())
+        self.session.add(new_active_user)
+
+        # и сохранить в историю входов
+        history = self.LoginHistory(user.id, ip_address, port,
+                                    datetime.datetime.now())
+        self.session.add(history)
+
+        # Сохрраняем изменения
+        self.session.commit()
+
+    def add_user(self, name, passwd_hash):
+        """Функция регистрации пользователя. Принимает имя и хэш пароля,
+        создаёт запись в таблице статистики."""
+        user_row = self.AllUsers(name, passwd_hash)
+        self.session.add(user_row)
+        self.session.commit()
+        history_row = self.UsersHistory(user_row.id)
+        self.session.add(history_row)
+        self.session.commit()
+
+    def get_hash(self, name):
+        user = self.session.query(self.AllUsers).filter_by(login=name).first()
+        return user.passwd_hash
+
+    def get_pubkey(self, name):
+        user = self.session.query(self.AllUsers).filter_by(login=name).first()
+        return user.pubkey
+
+    def check_user(self, name):
+        if self.session.query(self.AllUsers).filter_by(login=name).count():
+            return True
+        else:
+            return False
 
 
 if __name__ == '__main__':

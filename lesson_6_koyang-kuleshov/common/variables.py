@@ -21,6 +21,8 @@ RESPONSE = 'response'
 ERROR = 'error'
 MESSAGE = 'message'
 SENDER = 'sender'
+DATA = 'bin'
+PUBLIC_KEY = 'pubkey'
 
 # Protocol methods
 PRESENCE = 'presence'

@@ -13,20 +13,23 @@ from select import select
 from socket import socket, AF_INET, SOCK_STREAM
 import threading
 import sys
+import hmac
+import binascii
+import os
 from PyQt5.QtWidgets import QMainWindow, QApplication, qApp, QWidget,\
-    QLabel, QLineEdit, QPushButton, QFileDialog, QDialog, QTableView
+    QPushButton, QDialog, QTableView
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import QTimer, Qt
 from common.utils import get_message, send_message
 from common.variables import MAX_CONNECTIONS,\
     ACTION, PRESENCE, TIME, USER, RESPONSE, ERROR, TO, SENDER, MESSAGE, MSG, \
     ACCOUNT_NAME, QUIT, GET_CONTACTS, LIST_INFO, ADD_CONTACT, REMOVE_CONTACT, \
-    USERS_REQUEST
-from decorators import log
-from descriptors import Port, Host
-from metaclasses import ServerVerifier
-from server_database import ServerDatabase
-from server_gui import Ui_MainWindow
+    USERS_REQUEST, DATA, PUBLIC_KEY
+from common.decorators import log
+from common.descriptors import Port, Host
+from common.metaclasses import ServerVerifier
+from server.server_database import ServerDatabase
+from server.server_gui import Ui_MainWindow
 
 
 SERV_LOG = logging.getLogger('server.log')
@@ -73,6 +76,77 @@ class Server(threading.Thread, metaclass=ServerVerifier):
         self.messages = []
         self.names = dict()
 
+    def autorize_user(self, message, sock):
+        if message[USER][ACCOUNT_NAME] in self.names.keys():
+            response = {
+                    RESPONSE: 400,
+                    ERROR: 'Имя пользователя уже занято'
+                }
+            try:
+                send_message(sock, response)
+            except OSError:
+                pass
+            self.clients.remove(sock)
+            sock.close()
+        # Проверяем что пользователь зарегистрирован на сервере.
+        elif not self.database.check_user(message[USER][ACCOUNT_NAME]):
+            response = {
+                    RESPONSE: 400,
+                    ERROR: 'Пользователь не зарегистрирован.'
+                }
+            try:
+                send_message(sock, response)
+            except OSError:
+                pass
+            self.clients.remove(sock)
+            sock.close()
+        else:
+            # Иначе отвечаем 501 и проводим процедуру авторизации
+            # Словарь - заготовка
+            message_auth = {
+                RESPONSE: 511,
+                DATA: None
+                }
+            # Набор байтов в hex представлении
+            random_str = binascii.hexlify(os.urandom(64))
+            # В словарь байты нельзя, декодируем (json.dumps -> TypeError)
+            message_auth[DATA] = random_str.decode('ascii')
+            # Создаём хэш пароля и связки с рандомной строкой, сохраняем серверную версию ключа
+            hash = hmac.new(self.database.get_hash(message[USER][ACCOUNT_NAME]), random_str)
+            digest = hash.digest()
+            try:
+                # Обмен с клиентом
+                send_message(sock, message_auth)
+                ans = get_message(sock)
+            except OSError:
+                sock.close()
+                return
+            client_digest = binascii.a2b_base64(ans[DATA])
+            # Если ответ клиента корректный, то сохраняем его в список пользователей.
+            if RESPONSE in ans and ans[RESPONSE] == 511 and hmac.compare_digest(digest, client_digest):
+                self.names[message[USER][ACCOUNT_NAME]] = sock
+                client_ip, client_port = sock.getpeername()
+                try:
+                    send_message(sock, {
+                            RESPONSE: 200
+                    })
+                except OSError:
+                    self.remove_client(message[USER][ACCOUNT_NAME])
+                # добавляем пользователя в список активных и если у него изменился открытый ключ
+                # сохраняем новый
+                self.database.user_login(message[USER][ACCOUNT_NAME],
+                                         client_ip, client_port, message[USER][PUBLIC_KEY])
+            else:
+                response = {
+                    RESPONSE: 400,
+                    ERROR: 'Неверный пароль.'
+                }
+                try:
+                    send_message(sock, response)
+                except OSError:
+                    pass
+                self.clients.remove(sock)
+                sock.close()
     def init_socket(self):
         SERV = socket(AF_INET, SOCK_STREAM)
         try:
