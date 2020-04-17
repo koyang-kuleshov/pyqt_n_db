@@ -3,7 +3,8 @@ from socket import socket
 
 
 class ServerVerifier(type):
-    """ Метакласс для проверки соответствия сервера """
+    """ Метакласс для проверки соответствия сервера."""
+
     def __init__(self, clsname, bases, clsdict):
         methods = []
         for func in clsdict:
@@ -26,7 +27,7 @@ class ServerVerifier(type):
 
 
 class ClientVerifier(type):
-    """Метакласс для проверки корректности клиентов:"""
+    """Метакласс для проверки корректности клиентов."""
 
     def __init__(self, clsname, bases, clsdict):
         methods = []

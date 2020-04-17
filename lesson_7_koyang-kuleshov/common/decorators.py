@@ -1,4 +1,5 @@
-"""Создание декоратора для логирования функций через класс и функцию"""
+"""Декораторы для логирования функций реализованные через класс и функцию"""
+
 import sys
 import os
 from traceback import extract_stack
@@ -15,9 +16,11 @@ else:
 
 
 class Log():
-    """Декоратор реализованный на основе класс"""
+    """Декоратор реализованный на основе класса"""
+
     def __call__(self, func_to_log):
         """Перегрузка метода call"""
+
         def decorator(*args, **kwargs):
             """Реализация декоратоа"""
             ret = func_to_log(*args, **kwargs)
@@ -32,6 +35,7 @@ class Log():
 
 def log(func_to_log):
     """Декоратор реализованный на основе функции"""
+
     def log_decorator(*args, **kwargs):
         """Реализовация декоратора"""
         return_func = func_to_log(*args, **kwargs)

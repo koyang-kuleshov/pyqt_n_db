@@ -1,17 +1,23 @@
 """Константы"""
 from logging import DEBUG
 
+# Порт по умолчанию
 DEFAULT_PORT = 7777
+# Адрес сервера по умолчанию
 DEFAULT_IP_ADDRES = '127.0.0.1'
+# Количество соединений для сервера
 MAX_CONNECTIONS = 2
+# Максимальная длинна пакета, который принимает сервер
 MAX_PACKAGE_LENGTH = 1024
+# Кодировка
 ENCODING = 'UTF-8'
+# Уровень логгирования по умолчанию
 LOGGING_LEVEL = DEBUG
+# Путь для файла серверной базы данных
 SERVER_DATABASE = 'sqlite:///db.sqlite3'
 
 
-# JIM protocol
-
+# JIM протокол
 ACTION = 'action'
 TO = 'to'
 TIME = 'time'
@@ -24,7 +30,7 @@ SENDER = 'sender'
 DATA = 'bin'
 PUBLIC_KEY = 'pubkey'
 
-# Protocol methods
+# Методы протокола JIM
 PRESENCE = 'presence'
 PROBE = 'probe'
 MSG = 'msg'
